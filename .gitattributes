@@ -1,2 +1,4 @@
+data/dataset/*.jsonl filter=lfs diff=lfs merge=lfs -text
+data/dataset/*.csv filter=lfs diff=lfs merge=lfs -text
 data/dataset/traffic_counts_kafka.jsonl filter=lfs diff=lfs merge=lfs -text
 data/dataset/Camera_Traffic_Counts_latest.csv filter=lfs diff=lfs merge=lfs -text
