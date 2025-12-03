@@ -1,0 +1,12 @@
+{
+  "name": "filestream_raw_source",
+  "config": {
+    "connector.class": "FileStreamSource",
+    "tasks.max": "1",
+    "file": "/data/dataset/traffic_counts_kafka.json",
+    "topic": "traffic_raw_sensor",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter"
+  }
+}
