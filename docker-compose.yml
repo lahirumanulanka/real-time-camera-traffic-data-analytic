@@ -1,137 +1,72 @@
-# Use a unique Compose project name when starting (e.g., -p traffic-analytics)
-# to keep these containers separated from other projects on your machine.
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.1
-    restart: unless-stopped
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
     environment:
       - ZOOKEEPER_CLIENT_PORT=2181
       - ZOOKEEPER_TICK_TIME=2000
     ports:
       - "2181:2181"
-    volumes:
-      - zookeeper_data:/bitnami
-    networks:
-      - traffic_net
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "wget -qO- http://localhost:8080/commands > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
-    image: confluentinc/cp-kafka:7.6.1
-    restart: unless-stopped
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
-      - KAFKA_BROKER_ID=1
       - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
-      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
     ports:
-      - "9092:9092"      # internal Docker network
-      - "29092:29092"    # host access
-    volumes:
-      - kafka_data:/var/lib/kafka/data
-    networks:
-      - traffic_net
-
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    restart: unless-stopped
-    depends_on:
-      - kafka
-    environment:
-      - KAFKA_CLUSTERS_0_NAME=traffic
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
-    ports:
-      - "8080:8080"
-    networks:
-      - traffic_net
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "/usr/bin/kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:16
-    restart: unless-stopped
+    container_name: postgres
     environment:
-      - POSTGRES_USER=traffic
-      - POSTGRES_PASSWORD=traffic
       - POSTGRES_DB=trafficdb
+      - POSTGRES_USER=trafficuser
+      - POSTGRES_PASSWORD=trafficpass
     ports:
       - "5432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
-    networks:
-      - traffic_net
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trafficuser -d trafficdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   grafana:
-    image: grafana/grafana:11.2.0
-    restart: unless-stopped
+    image: grafana/grafana-oss:10.4.3
+    container_name: grafana
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
     ports:
       - "3000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
-    networks:
-      - traffic_net
-
-  kafka-connect:
-    build:
-      context: ./kafka-connect
-    restart: unless-stopped
-    depends_on:
-      - kafka
-    environment:
-      - CONNECT_BOOTSTRAP_SERVERS=kafka:9092
-      - CONNECT_REST_PORT=8083
-      - CONNECT_GROUP_ID=traffic-connect-group
-      - CONNECT_CONFIG_STORAGE_TOPIC=_connect-configs
-      - CONNECT_OFFSET_STORAGE_TOPIC=_connect-offsets
-      - CONNECT_STATUS_STORAGE_TOPIC=_connect-status
-      - CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR=1
-      - CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR=1
-      - CONNECT_STATUS_STORAGE_REPLICATION_FACTOR=1
-      - CONNECT_CONFIG_STORAGE_PARTITIONS=1
-      - CONNECT_OFFSET_STORAGE_PARTITIONS=5
-      - CONNECT_STATUS_STORAGE_PARTITIONS=1
-      - CONNECT_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - CONNECT_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE=false
-      - CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE=false
-      - CONNECT_PLUGIN_PATH=/usr/share/java,/etc/kafka-connect/plugins
-      - CONNECT_REST_ADVERTISED_HOST_NAME=localhost
-      - CONNECT_LOG4J_LOGGERS=org.reflections=ERROR
-    ports:
-      - "8083:8083"
-    volumes:
-      - ./kafka-connect/connectors:/etc/kafka-connect/connectors:ro
-      - ./data:/data:ro
-    networks:
-      - traffic_net
-
-  app:
-    image: python:3.11-slim
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./kafka-scripts:/app/kafka-scripts:rw
-      - ./data:/app/data:rw
-    command: ["sleep", "infinity"]
-    networks:
-      - traffic_net
-
-networks:
-  traffic_net:
-    driver: bridge
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "wget -qO- http://localhost:3000/api/health | grep -q 'ok' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  zookeeper_data:
-  kafka_data:
-  pg_data:
+  pgdata:
