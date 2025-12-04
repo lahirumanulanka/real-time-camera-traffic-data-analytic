@@ -1,0 +1,4 @@
+kafka-python
+pandas
+orjson
+psycopg2-binary
