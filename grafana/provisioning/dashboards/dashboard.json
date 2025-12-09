@@ -1,268 +1,113 @@
 {
   "id": null,
-  "uid": "traffic-monitoring",
+  "uid": "traffic-monitor",
   "title": "IoT Traffic Monitoring Dashboard",
-  "tags": ["traffic", "kafka", "flink", "postgres"],
-  "timezone": "browser",
   "schemaVersion": 39,
-  "version": 4,
-  "refresh": "5s",
+  "version": 6,
   "editable": true,
-  "graphTooltip": 1,
-  "style": "dark",
-  "time": {
-    "from": "now-24h",
-    "to": "now"
-  },
-  "timepicker": {
-    "refresh_intervals": [
-      "5s",
-      "10s",
-      "30s",
-      "1m",
-      "5m",
-      "15m",
-      "30m",
-      "1h"
-    ],
-    "time_options": [
-      "5m",
-      "15m",
-      "30m",
-      "1h",
-      "6h",
-      "12h",
-      "24h",
-      "2d",
-      "7d",
-      "30d"
-    ]
-  },
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
-  "templating": {
-    "list": []
-  },
-
+  "refresh": "5s",
+  "timezone": "browser",
+  "time": { "from": "now-24h", "to": "now" },
   "panels": [
     {
       "id": 1,
       "type": "timeseries",
-      "title": "Datasource Probe (15s points)",
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "title": "Datasource Probe (15s)",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
       "datasource": { "type": "postgres", "uid": "postgres_ds" },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single" }
-      },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "datasource": { "type": "postgres", "uid": "postgres_ds" },
           "rawSql": "SELECT generate_series(NOW() - INTERVAL '15 minutes', NOW(), '15 seconds') AS time, 1 AS value;"
         }
       ]
     },
-
     {
       "id": 2,
       "type": "timeseries",
       "title": "Live Minute Flow (Raw Data)",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 5 },
       "datasource": { "type": "postgres", "uid": "postgres_ds" },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single" }
-      },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "datasource": { "type": "postgres", "uid": "postgres_ds" },
-          "rawSql": "SELECT read_time AS time, device_id::text AS metric, volume AS value FROM traffic_readings WHERE read_time >= NOW() - INTERVAL '15 minutes' ORDER BY 1, 2;"
+          "rawSql": "SELECT $__time(read_time) AS time, device_id::text AS metric, volume AS value FROM traffic_readings WHERE $__timeFilter(read_time) ORDER BY 1, 2;"
         }
-      ]
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
     },
-
     {
       "id": 3,
       "type": "timeseries",
       "title": "Hourly Average Traffic Flow",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 13 },
       "datasource": { "type": "postgres", "uid": "postgres_ds" },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single" }
-      },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "datasource": { "type": "postgres", "uid": "postgres_ds" },
-          "rawSql": "SELECT report_hour AS time, device_id::text AS metric, avg_volume AS value FROM hourly_avg_volume WHERE report_hour >= NOW() - INTERVAL '6 hours' ORDER BY 1, 2;"
+          "rawSql": "SELECT $__time(report_hour) AS time, device_id::text AS metric, avg_volume AS value FROM hourly_avg_volume WHERE $__timeFilter(report_hour) ORDER BY 1,2;"
         }
       ]
     },
-
     {
       "id": 4,
       "type": "timeseries",
       "title": "Daily Peak Volume (Last 7 Days)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 21 },
       "datasource": { "type": "postgres", "uid": "postgres_ds" },
       "timeFrom": "7d",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single" }
-      },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "datasource": { "type": "postgres", "uid": "postgres_ds" },
           "rawSql": "SELECT (report_date + time '12:00') AS time, peak_volume AS value FROM daily_peak_volume WHERE report_date >= CURRENT_DATE - INTERVAL '7 days' ORDER BY report_date;"
         }
       ]
     },
-
     {
       "id": 5,
       "type": "timeseries",
       "title": "Daily Average Volume (Last 7 Days)",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 21 },
       "datasource": { "type": "postgres", "uid": "postgres_ds" },
       "timeFrom": "7d",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single" }
-      },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "datasource": { "type": "postgres", "uid": "postgres_ds" },
           "rawSql": "SELECT (DATE(report_hour) + time '12:00') AS time, AVG(avg_volume) AS value FROM hourly_avg_volume WHERE report_hour >= CURRENT_DATE - INTERVAL '7 days' GROUP BY DATE(report_hour) ORDER BY DATE(report_hour);"
         }
       ]
     },
-
     {
       "id": 6,
       "type": "table",
       "title": "Daily Sensor Availability (Last 7 Days)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 28 },
       "datasource": { "type": "postgres", "uid": "postgres_ds" },
       "timeFrom": "7d",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "showHeader": true,
-        "footer": { "show": false }
-      },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "datasource": { "type": "postgres", "uid": "postgres_ds" },
           "rawSql": "SELECT report_date AS time, device_id, availability_pct AS value FROM daily_sensor_availability WHERE report_date >= CURRENT_DATE - INTERVAL '7 days' ORDER BY report_date, device_id;"
         }
       ]
     },
-
     {
       "id": 7,
       "type": "gauge",
       "title": "Availability Today – Sensor 7038",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 28 },
       "datasource": { "type": "postgres", "uid": "postgres_ds" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "datasource": { "type": "postgres", "uid": "postgres_ds" },
           "rawSql": "SELECT report_date AS time, availability_pct AS value FROM daily_sensor_availability WHERE device_id = '7038' AND report_date >= CURRENT_DATE - INTERVAL '1 day' ORDER BY report_date DESC LIMIT 1;"
         }
       ]

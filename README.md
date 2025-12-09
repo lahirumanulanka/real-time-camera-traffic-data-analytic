@@ -1,140 +1,94 @@
-# Real-Time Camera Traffic Data Analytic — Containers
+# Real‑Time Camera Traffic Analytics (Student Guide)
 
-This repo includes a Docker Compose stack to run Kafka (+ Zookeeper), Kafka UI, PostgreSQL, Grafana, and a placeholder Python app container for your scripts.
+Simple setup to stream fake traffic sensor data into Kafka, save it in Postgres, and see live charts in Grafana.
 
-## Prerequisites
-- Docker Desktop installed and running
+## What you need
+- Docker Desktop running
 - Windows PowerShell (commands below use PowerShell)
+- Python 3.11+ (to run producer/consumer locally)
+- Git LFS (large files tracked in this repo)
 
-## Start (isolated from other projects)
-Use a unique compose project name to avoid collisions with other stacks:
+## Quick start
+1) Start the stack (Kafka, Zookeeper, Postgres, Grafana):
 
 ```powershell
 cd "c:\Users\ASUS\Documents\real-time-camera-traffic-data-analytic"
-# choose your own project name if you prefer
-$PROJECT="traffic-analytics";
-docker compose -p $PROJECT up -d
+docker compose up -d
 ```
 
-## Stop and Remove
-```powershell
-$PROJECT="traffic-analytics";
-docker compose -p $PROJECT down
-```
-
-## Check Status and Logs
-```powershell
-$PROJECT="traffic-analytics";
-docker compose -p $PROJECT ps
-
-docker compose -p $PROJECT logs kafka -f
-```
-
-## Services
-- Zookeeper: `localhost:2181`
-- Kafka (internal): `kafka:9092` (for containers)
-- Kafka (host): `localhost:29092` (for local clients)
-- Kafka UI: http://localhost:8080
-- PostgreSQL: `localhost:5432` (db: `trafficdb`, user: `traffic`, pass: `traffic`)
-- Grafana: http://localhost:3000 (admin/admin)
- - Kafka Connect: http://localhost:8083 (REST API)
-
-## Project Scripts
-- Mounts `./kafka-scripts` and `./data` into the `app` container at `/app/...`.
-- For now, the `app` container idles (`sleep infinity`). Replace the command to run your orchestrator (`run_all.py`) when it exists.
-
-Example (when ready):
-```yaml
-  app:
-    image: python:3.11-slim
-    working_dir: /app
-    volumes:
-      - ./kafka-scripts:/app/kafka-scripts
-      - ./data:/app/data
-    command: ["python", "kafka-scripts/run_all.py"]
-```
-
-## Notes
-- Kafka topics can be auto-created; you can also manage them via Kafka UI.
-- Grafana will look for provisioning in `grafana/provisioning`. Add `datasource.yml` and `dashboards.yml` when ready.
-- This stack is isolated by the compose project name (e.g., `traffic-analytics`) so it won't collide with other projects using Kafka/Postgres/Grafana on your machine.
-
-## Kafka Connect
-### Build & Start with Connect
-```powershell
-cd "c:\Users\ASUS\Documents\real-time-camera-traffic-data-analytic"
-$PROJECT="traffic-analytics";
-docker compose -p $PROJECT up -d --build kafka-connect
-```
-
-### List Connectors (empty initially)
-```powershell
-Invoke-RestMethod -Uri http://localhost:8083/connectors
-```
-
-### Register FileStream Source (reads JSON lines file)
-```powershell
-Invoke-RestMethod -Method Post -ContentType 'application/json' -InFile .\kafka-connect\connectors\filestream_raw_source.json -Uri http://localhost:8083/connectors
-```
-
-### Register Postgres Sink (aggregated topic to DB)
-```powershell
-Invoke-RestMethod -Method Post -ContentType 'application/json' -InFile .\kafka-connect\connectors\postgres_sink_traffic_processed.json -Uri http://localhost:8083/connectors
-```
-
-### Check Connector Status
-```powershell
-Invoke-RestMethod -Uri http://localhost:8083/connectors/filestream_raw_source/status
-Invoke-RestMethod -Uri http://localhost:8083/connectors/postgres_sink_traffic_processed/status
-```
-
-### Remove a Connector
-```powershell
-Invoke-RestMethod -Method Delete -Uri http://localhost:8083/connectors/filestream_raw_source
-```
-
-### Important
-- Ensure `/data/dataset/traffic_counts_kafka.json` exists and contains one JSON object per line for the FileStream connector.
-- Messages sent to `traffic_processed_aggregate` should use a key with `sensor_id` to allow the sink upsert to work (pk mode record_key).
-- Adjust retention or partition counts using `kafka-topics` as needed.
-
-## Data Ingestion
-
-### Fetch latest Camera Traffic Counts (>=5,000 rows)
-
-This project can pull the latest records from Austin's Camera Traffic Counts open dataset via the Socrata API and save a CSV locally.
-
-Steps (Windows PowerShell):
-
-1. Ensure your Python environment is active. If you use the repo's virtual environment:
+2) Create the database tables:
 
 ```powershell
-# Activate venv (adjust path if needed)
+# Raw readings table
+docker exec -i postgres psql -U trafficuser -d trafficdb -f /scripts/create_readings_table.sql
+
+# Metrics tables (hourly avg, daily peak, availability)
+python .\kafka-scripts\db\init_db.py
+```
+
+3) Install Python packages (first time only):
+
+```powershell
 & .\.venv\Scripts\Activate.ps1
+pip install -r .\requirements.txt
 ```
 
-2. Install required packages:
+4) Run the consumer (saves data + metrics into Postgres):
 
 ```powershell
-pip install sodapy pandas
+python .\kafka-scripts\consumer\consumer_metrics.py
 ```
 
-3. (Optional but recommended) Set a Socrata app token to improve reliability:
+5) Run the producer (sends new readings every 5 seconds):
 
 ```powershell
-$env:SOCRATA_APP_TOKEN = "your-app-token-here"
+python .\kafka-scripts\producer\producer_live.py
 ```
 
-Create a token at https://data.austintexas.gov/profile/edit/developer_settings
+6) Open Grafana:
+- URL: http://localhost:3000
+- Login: `admin` / `admin`
+- Dashboard: “Real‑Time Traffic Metrics” (auto refresh 5s)
+- If you see no data, set time range to “Last 15m”.
 
-4. Run the fetch script to download at least 5,000 latest rows:
+## Services (from docker‑compose)
+- Zookeeper: `localhost:2181`
+- Kafka: `localhost:9092`
+- Postgres: `localhost:5432` (db `trafficdb`, user `trafficuser`, pass `trafficpass`)
+- Grafana: `http://localhost:3000` (admin/admin)
 
+## Useful checks
+See if tables exist:
 ```powershell
-python .\scripts\fetch_camera_counts.py 5000
+docker exec -i postgres psql -U trafficuser -d trafficdb -c "\\dt"
+```
+Recent raw data in the last 10 minutes:
+```powershell
+docker exec -i postgres psql -U trafficuser -d trafficdb -c "SELECT COUNT(*) AS last10m FROM traffic_readings WHERE read_time >= NOW() - INTERVAL '10 minutes';"
 ```
 
-This writes `data/dataset/Camera_Traffic_Counts_latest.csv` and prints a small preview.
+## Troubleshooting (quick)
+- Grafana loads but panels are empty:
+  - Make sure producer and consumer are running.
+  - Set time range to “Last 15m” and click Refresh.
+  - Restart Grafana to reload provisioning:
+    ```powershell
+    docker restart grafana
+    ```
+- Points show outside time range or chart flickers:
+  - Producer now sends timestamps in UTC with a `Z` suffix.
+  - Dashboard “live” mode is off and refresh is 5s.
+- Kafka connection issues:
+  - Kafka runs on `localhost:9092`.
+  - Wait ~15–30s after `docker compose up -d` for services to be healthy.
 
-Notes:
-- You can change the target row count by passing a different number (e.g., `python .\scripts\fetch_camera_counts.py 10000`).
-- The script pages results ordered by `count_time` descending to prioritize the latest records.
+## Git LFS (large files)
+This repo tracks big datasets with Git LFS. After clone:
+```powershell
+git lfs install
+git lfs pull
+```
+
+## Extras
+- The dataset files live under `data/dataset/`.
+- You can fetch your own CSV via `scripts/fetch_camera_counts.py` if you want.
