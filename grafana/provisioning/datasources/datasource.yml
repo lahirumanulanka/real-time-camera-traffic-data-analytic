@@ -14,6 +14,7 @@ datasources:
       sslmode: disable
       database: trafficdb
       timescaledb: false
+      # optional: only used by some panels, safe to keep
       timeColumn: read_time
       timezone: UTC
     editable: true
