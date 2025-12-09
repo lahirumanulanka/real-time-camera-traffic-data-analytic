@@ -51,6 +51,38 @@ python .\kafka-scripts\producer\producer_live.py
 - Dashboard: “Real‑Time Traffic Metrics” (auto refresh 5s)
 - If you see no data, set time range to “Last 15m”.
 
+### Environment variables (optional)
+If you run producer/consumer inside Docker or change endpoints, you can set:
+
+```powershell
+$env:KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"    # or "kafka:9092" in Docker network
+$env:DB_HOST = "localhost"                          # or "postgres" in Docker network
+$env:DB_PORT = "5432"
+$env:DB_NAME = "trafficdb"
+$env:DB_USER = "trafficuser"
+$env:DB_PASS = "trafficpass"
+```
+
+Then run the scripts in the same shell:
+```powershell
+python .\kafka-scripts\consumer\consumer_metrics.py
+python .\kafka-scripts\producer\producer_live.py
+```
+
+### Topics used
+- Raw readings topic: `traffic_raw`
+- Metrics topic: `traffic_metrics`
+
+### Docker alternative (optional)
+If you prefer running everything via Docker Compose, start the core services first:
+```powershell
+docker compose up -d
+```
+Then run producer/consumer locally as above, or add them as services in `docker-compose.yml` (if present) and start with:
+```powershell
+docker compose up -d producer consumer
+```
+
 ## Services (from docker‑compose)
 - Zookeeper: `localhost:2181`
 - Kafka: `localhost:9092`
@@ -81,14 +113,3 @@ docker exec -i postgres psql -U trafficuser -d trafficdb -c "SELECT COUNT(*) AS 
 - Kafka connection issues:
   - Kafka runs on `localhost:9092`.
   - Wait ~15–30s after `docker compose up -d` for services to be healthy.
-
-## Git LFS (large files)
-This repo tracks big datasets with Git LFS. After clone:
-```powershell
-git lfs install
-git lfs pull
-```
-
-## Extras
-- The dataset files live under `data/dataset/`.
-- You can fetch your own CSV via `scripts/fetch_camera_counts.py` if you want.
