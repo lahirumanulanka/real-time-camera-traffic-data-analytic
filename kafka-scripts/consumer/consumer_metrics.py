@@ -105,6 +105,19 @@ def main():
             except (ValueError, TypeError):
                 logger.warning("Skipping message with invalid timestamp: %s", read_time_str)
                 continue
+            # --- Persist raw reading for real-time visualization ---
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO traffic_readings (device_id, read_time, volume)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (device_id, read_time) DO UPDATE SET volume = EXCLUDED.volume;
+                    """,
+                    (device_id, read_time, volume)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to insert raw reading: {e}")
+
 
             day_date = read_time.date()
             hour = read_time.hour

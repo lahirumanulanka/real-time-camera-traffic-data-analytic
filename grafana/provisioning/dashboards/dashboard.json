@@ -23,36 +23,40 @@
     "id": 1,
     "links": [],
     "liveNow": false,
+    "refresh": "5s",
     "panels": [
         {
             "id": 2,
-            "title": "Traffic Flow per Sensor",
+            "title": "Traffic Flow per Sensor (Hourly Avg)",
             "type": "timeseries",
-            "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
-            "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
+            "gridPos": { "h": 9, "w": 24, "x": 0, "y": 6 },
+            "timeFrom": "6h",
+            "datasource": { "type": "postgres", "uid": "postgres_ds" },
             "targets": [
                 {
                     "refId": "A",
                     "format": "time_series",
                     "rawQuery": true,
-                    "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
-                    "sql": "SELECT\n  report_hour AS \"time\",\n  device_id::text AS metric,\n  avg_volume\nFROM hourly_avg_volume\nWHERE $__timeFilter(report_hour)\nORDER BY 1,2"
+                    "datasource": { "type": "postgres", "uid": "postgres_ds" },
+                    "rawSql": "SELECT\n  $__timeGroup(report_hour, '1h') AS \"time\",\n  device_id::text AS metric,\n  AVG(avg_volume) AS value\nFROM hourly_avg_volume\nWHERE $__timeFilter(report_hour + interval '1 hour')\nGROUP BY 1, 2\nORDER BY 1, 2"
                 }
             ]
+            ,"options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+            "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 2, "showPoints": "always"}}}
         },
         {
             "id": 3,
             "title": "Daily Peak Volume",
             "type": "barchart",
             "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
-            "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
+            "datasource": { "type": "postgres", "uid": "postgres_ds" },
             "targets": [
                 {
                     "refId": "A",
                     "format": "time_series",
                     "rawQuery": true,
-                    "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
-                    "sql": "SELECT\n  report_date AS \"time\",\n  peak_volume\nFROM daily_peak_volume\nWHERE report_date BETWEEN $__timeFrom()::date AND $__timeTo()::date\nORDER BY report_date;"
+                    "datasource": { "type": "postgres", "uid": "postgres_ds" },
+                    "rawSql": "SELECT\n  report_date AS \"time\",\n  peak_volume AS value\nFROM daily_peak_volume\nWHERE report_date = CURRENT_DATE\nORDER BY report_date;"
                 }
             ]
         },
@@ -61,14 +65,14 @@
             "title": "Daily Average Volume",
             "type": "barchart",
             "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
-            "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
+            "datasource": { "type": "postgres", "uid": "postgres_ds" },
             "targets": [
                 {
                     "refId": "A",
                     "format": "time_series",
                     "rawQuery": true,
-                    "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
-                    "sql": "SELECT\n  DATE(report_hour) AS report_date,\n  AVG(avg_volume) AS daily_avg_volume\nFROM hourly_avg_volume\nWHERE $__timeFilter(report_hour)\nGROUP BY DATE(report_hour)\nHAVING DATE(report_hour) BETWEEN $__timeFrom()::date AND $__timeTo()::date\nORDER BY report_date;"
+                    "datasource": { "type": "postgres", "uid": "postgres_ds" },
+                    "rawSql": "SELECT\n  DATE(report_hour) AS \"time\",\n  AVG(avg_volume) AS value\nFROM hourly_avg_volume\nWHERE report_hour >= NOW() - INTERVAL '1 day'\nGROUP BY DATE(report_hour)\nORDER BY \"time\";"
                 }
             ]
         },
@@ -77,14 +81,14 @@
             "title": "Daily Sensor Availability (Table)",
             "type": "table",
             "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 },
-            "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
+            "datasource": { "type": "postgres", "uid": "postgres_ds" },
             "targets": [
                 {
                     "refId": "A",
                     "format": "table",
                     "rawQuery": true,
-                    "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
-                    "sql": "SELECT\n  report_date AS \"time\",\n  device_id,\n  availability_pct\nFROM daily_sensor_availability\nWHERE report_date BETWEEN $__timeFrom()::date AND $__timeTo()::date\nORDER BY report_date, device_id;"
+                    "datasource": { "type": "postgres", "uid": "postgres_ds" },
+                    "rawSql": "SELECT\n  report_date AS \"time\",\n  device_id,\n  availability_pct AS value\nFROM daily_sensor_availability\nWHERE report_date = CURRENT_DATE\nORDER BY report_date, device_id;"
                 }
             ]
         },
@@ -93,14 +97,14 @@
             "title": "Availability — Device 7038 (Gauge)",
             "type": "gauge",
             "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 },
-            "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
+            "datasource": { "type": "postgres", "uid": "postgres_ds" },
             "targets": [
                 {
                     "refId": "A",
                     "format": "time_series",
                     "rawQuery": true,
-                    "datasource": { "type": "postgres", "uid": "DS_POSTGRESQL-TRAFFIC" },
-                    "sql": "SELECT\n  report_date AS \"time\",\n  availability_pct\nFROM daily_sensor_availability\nWHERE device_id = '7038' AND report_date BETWEEN $__timeFrom()::date AND $__timeTo()::date\nORDER BY report_date;"
+                    "datasource": { "type": "postgres", "uid": "postgres_ds" },
+                    "rawSql": "SELECT\n  report_date AS \"time\",\n  availability_pct AS value\nFROM daily_sensor_availability\nWHERE device_id = '7038' AND report_date = CURRENT_DATE\nORDER BY report_date;"
                 }
             ]
         }
@@ -109,11 +113,11 @@
     "style": "dark",
     "tags": [],
     "templating": { "list": [] },
-    "time": { "from": "2024-06-05T04:00:00.000Z", "to": "2024-06-05T10:00:00.000Z" },
-    "timepicker": {},
+    "time": { "from": "now-15m", "to": "now" },
+    "timepicker": { "refresh_intervals": ["5s","10s","30s","1m","5m","15m"] },
     "timezone": "browser",
     "title": "Real-Time Traffic Metrics",
     "uid": "e438e41a-7308-4422-b8a0-97a234a55f42",
-    "version": 11,
+    "version": 12,
     "weekStart": ""
 }

@@ -1,14 +1,19 @@
 apiVersion: 1
-
 datasources:
-  - name: PostgreSQL-Traffic
-    uid: DS_POSTGRESQL-TRAFFIC
+  - name: Postgres
     type: postgres
+    uid: postgres_ds
+    isDefault: true
     access: proxy
     url: postgres:5432
     user: trafficuser
-    password: trafficpass
-    database: trafficdb
-    isDefault: true
+    secureJsonData:
+      password: trafficpass
     jsonData:
+      postgresVersion: 1600
       sslmode: disable
+      database: trafficdb
+      timescaledb: false
+      timeColumn: read_time
+      timezone: UTC
+    editable: true
